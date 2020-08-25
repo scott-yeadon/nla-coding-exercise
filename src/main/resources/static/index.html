@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NLA coding exercise</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+  <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+  <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
+ 
+  <!-- Latest compiled and minified CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
+
+  <!-- Optional theme -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap-theme.min.css" integrity="sha384-6pzBo3FDv/PJ8r2KRkGHifhEocL+1X2rVCTTkUfGk7/0pbek5mMa1upzvWbrUbOZ" crossorigin="anonymous">
+
+  <!-- Latest compiled and minified JavaScript -->
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>  
+  <style>
+    body {background-color:#faf0f1;}
+	.listTable {background-color: #e4f7df;}
+	.nlaPanel {margin-top: 10px;}
+	#listWrapper {margin-top: 10px;}
+	.nlaShowBookButton {float: right; margin-right: 50%;}
+	#borrowerBookList {padding-top: 20px;}
+</style>
+</head>
+<body class="body">
+	<h1>NLA Coding Exercise</h1>
+	<p>Click on the <strong>Books</strong> button to list all books.</p>
+	<p>Click on the <strong>Borrowers</strong> button to list all borrowers. For each borrower, click on the <strong>Show books</strong> button to view the books currently on loan to that person.</p>
+	<div id="app">
+		<div class="btn-group btn-group-justified" role="group" aria-label="...">
+		  <div class="btn-group" role="group">
+			<button type="button" class="btn btn-default" v-on:click="showBookList()">Books</button>
+		  </div>
+		  <div class="btn-group" role="group">
+			<button type="button" class="btn btn-default" v-on:click="showBorrowersList">Registered borrowers</button>
+		  </div>
+		 </div>
+		<div id="listWrapper">
+		 <div v-html="listContent"></div>
+		</div>
+	 </div>
+
+  <script>
+	var app = new Vue({
+      el: '#app',
+      data: {
+        listContent: ""
+      },
+	  methods: {
+		showBookList: async function() {
+			const response = await fetch("http://localhost:8080/books");
+			let data = "No books were able to be found";
+
+			if (response.ok) {
+			  let json = await response.json();
+			  json.sort((a, b) => (a.title > b.title) - (a.title < b.title));
+
+			  let html = '<div class="panel panel-default nlaPanel"><div class="panel-heading">List of library books</div><table class="table listTable"><thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Availability</tr></thead>';
+			  json.forEach(function(book) {
+				 html = html + "<tr><td>" + book.title + "</td><td>" + book.author + "</td><td>" + book.isbn + "</td>";
+				 if (book.borrowerId !== undefined) {
+					html = html + "<td>On loan</td>";
+				 } else {
+					html = html + "<td>Available</td>";
+				 }
+				 html = html + "</tr>";
+			  });
+			  html = html + "</table></div>";
+			  this.listContent = html;
+			} else {
+			  this.listContent = "Error retrieving book list: " + response.status;
+			}
+		},
+		showBorrowersList: async function() {
+			const response = await fetch("http://localhost:8080/borrowers");
+			let data = "No borrowers were able to be found";
+
+			if (response.ok) {
+			  let json = await response.json();
+
+			  json.sort((a, b) => (a.surname > b.surname) - (a.surname < b.surname));
+
+			  let html = '<div class="panel panel-default nlaPanel"><div class="panel-heading">List of registered borrowers</div><table class="table listTable"><thead><tr><th>Name</th><th>Contact email</th></tr></thead>';
+			  json.forEach(function(borrower) {
+				 html = html + '<tr><td><span id="' + borrower.borrowerId + '">' + borrower.surname + ", " + borrower.givenNames + '<button type="button" class="btn btn-default nlaShowBookButton" onClick="app.showBorrowerBookList(' + borrower.borrowerId + ')">Show books</button></td><td>' + borrower.email + "</span></td></tr>";
+			  });
+			  html = html + "</table></div>";
+			  this.listContent = html;
+			} else {
+			  this.listContent = "Error retrieving borrower list: " + response.status;
+			}
+		},
+		showBorrowerBookList: async function(borrowerId) {
+			if (borrowerId !== null && isNaN(borrowerId)) {
+				alert("Invalid borrowerId provided, a book list was unable to be retrieved");
+				return;
+			}
+			
+			const response = await fetch("http://localhost:8080/books?borrowerId=" + borrowerId);
+			
+			if (response.ok) {
+			  let json = await response.json();
+			  json.sort((a, b) => (a.title > b.title) - (a.title < b.title));
+
+			  let html = '<div id="borrowerBookList">';
+			  json.forEach(function(book) {
+				 html = html + "<p><strong>" + book.title + "</strong>, " + book.author + " (ISBN: " + book.isbn + ")</p>";
+			  });
+			  html = html + "</div>";
+			  $("#borrowerBookList").remove();
+			  $(html).insertAfter("#" + borrowerId);
+			} else {
+			  alert("Error retrieving book list for borrower: " + response.status);
+			}
+		},
+	  }
+    });	
+  </script>
+</body>
+</html>
